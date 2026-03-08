@@ -1,0 +1,44 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 40px;
+    background-color: #f4f4f4;
+}
+
+.demo-section {
+    background: white;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.status {
+    color: green;
+    font-weight: bold;
+}
+
+#message-input, #reported-msg, #context-input {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    margin-bottom: 10px;
+}
+
+#report-form button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    cursor: pointer;
+}
+
+#report-form button:hover {
+    background-color: #0056b3;
+}
+
+.report-item {
+    border-left: 4px solid #007bff;
+    padding: 10px;
+    margin: 10px 0;
+    background-color: #f9f9f9;
+}

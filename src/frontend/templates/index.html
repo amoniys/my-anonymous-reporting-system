@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Anonymous Reporting System</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <h1>Anonymous Reporting System Demo</h1>
+
+    <div class="demo-section">
+        <h2>System Modules Status</h2>
+        <ul id="module-status">
+            <li>Submission Module: <span class="status">Operational</span></li>
+            <li>Verification Module: <span class="status">Operational</span></li>
+            <li>Storage Module: <span class="status">Operational</span></li>
+            <li>Abuse Control Module: <span class="status">Operational</span></li>
+        </ul>
+    </div>
+
+    <div class="demo-section">
+        <h2>Send a Message (Simulated)</h2>
+        <p>This simulates Alice sending a message to Bob.</p>
+        <label for="message-input">Message:</label>
+        <input type="text" id="message-input" placeholder="Enter a message, e.g., 'Hi Bob!' or 'This is a violation!'">
+        <button onclick="simulateSendMessage()">Simulate Send</button>
+        <p id="sent-message-preview"></p>
+    </div>
+
+    <div class="demo-section">
+        <h2>Submit a Report</h2>
+        <form id="report-form">
+            <label for="reporter-select">Reporter (User B):</label>
+            <select id="reporter-select">
+                <option value="{{ clients[1].id }}">{{ clients[1].name }} ({{ clients[1].id }})</option>
+            </select><br><br>
+
+            <label for="reported-msg">Message to Report:</label>
+            <textarea id="reported-msg" readonly></textarea><br><br>
+
+            <label for="context-input">Context (e.g., 'Spam', 'Harassment'):</label>
+            <input type="text" id="context-input" value="Violation Report"><br><br>
+
+            <button type="submit">Submit Anonymous Report</button>
+        </form>
+    </div>
+
+    <div class="demo-section">
+        <h2>Reports Log</h2>
+        <div id="reports-container">
+            <!-- Reports will be populated here by JavaScript -->
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
