@@ -9,16 +9,6 @@
     <h1>Anonymous Reporting System Demo</h1>
 
     <div class="demo-section">
-        <h2>System Modules Status</h2>
-        <ul id="module-status">
-            <li>Submission Module: <span class="status">Operational</span></li>
-            <li>Verification Module: <span class="status">Operational</span></li>
-            <li>Storage Module: <span class="status">Operational</span></li>
-            <li>Abuse Control Module: <span class="status">Operational</span></li>
-        </ul>
-    </div>
-
-    <div class="demo-section">
         <h2>Send a Message (Simulated)</h2>
         <p>This simulates Alice sending a message to Bob.</p>
         <label for="message-input">Message:</label>
@@ -43,6 +33,17 @@
 
             <button type="submit">Submit Anonymous Report</button>
         </form>
+    </div>
+
+    <!-- 新增：审核者工作台 -->
+    <div class="demo-section">
+        <h2>Moderator Workstation</h2>
+        <p>This panel shows the reports received by the moderator and their verification status.</p>
+        <div id="moderator-workspace">
+            <div id="verification-results-container">
+                <!-- 审核结果将在这里通过JavaScript动态填充 -->
+            </div>
+        </div>
     </div>
 
     <div class="demo-section">

@@ -1,103 +1,77 @@
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-from .config import settings
-from .core.report_manager import ReportManager
-from .modules.verification import VerificationModule
+import uvicorn
 import asyncio
-import json
+from .core.report_manager import ReportManager
+from .core.ws_manager import manager # 导入管理器
+from .core.onion_franking import generate_server_keys
 
-app = FastAPI(title=settings.PROJECT_NAME)
+# --- Application Setup ---
+print("Starting Anonymous Reporting System...")
+print("- Open your browser to http://127.0.0.1:8000")
+print("- The system includes 4 modules: Submission, Verification, Storage, Abuse Control.")
+print("- A WebSocket endpoint at /ws provides live updates.")
+print("- An AI review endpoint is available at /api/v1/ai_review for model integration.")
+
+app = FastAPI(title="Anonymous Reporting System API")
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 templates = Jinja2Templates(directory="frontend/templates")
 
+# --- System Initialization ---
+server_public_keys, _ = generate_server_keys()
 report_manager = ReportManager()
-verification_module = VerificationModule()
 
-# --- Demo Setup ---
-server_public_keys_demo = [f"pubkey_server_{i}".encode() for i in range(settings.SERVER_COUNT)]
-demo_clients = {}
-for name in ["Alice", "Bob"]:
-    client = report_manager.register_client(name)
-    demo_clients[name] = client
+# Register initial clients (Alice and Bob)
+alice = report_manager.register_client("Alice")
+bob = report_manager.register_client("Bob")
+clients = [alice, bob]
 
-@app.get("/", response_class=HTMLResponse)
-async def root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, "clients": list(demo_clients.values())})
-
-class SubmitReportRequest(BaseModel):
-    reporter_id: str
-    reported_message: str
-    context: str
-
-@app.post("/api/v1/report")
-async def submit_report_endpoint(request: SubmitReportRequest):
-    receiver_key = demo_clients["Bob"].shared_key_with_receiver
-    report = await report_manager.handle_full_report_flow(
-        reporter_id=request.reporter_id,
-        reported_message=request.reported_message,
-        context=request.context,
-        server_public_keys=server_public_keys_demo,
-        receiver_shared_key=receiver_key
-    )
-    return report
-
-@app.get("/api/v1/reports")
-async def get_reports():
-    return report_manager.get_all_reports()
-
-# WebSocket for real-time updates
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: str):
-        for connection in self.active_connections:
-            try:
-                await connection.send_text(message)
-            except WebSocketDisconnect:
-                self.disconnect(connection)
-
-manager = ConnectionManager()
-
+# --- WebSocket Endpoint ---
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
+            # 等待消息，如果客户端没有发送任何消息，此循环会一直阻塞
             data = await websocket.receive_text()
-            # Broadcast new reports to all connected clients
-            reports = report_manager.get_all_reports()
-            await manager.broadcast(json.dumps({"type": "update_reports", "data": reports}))
+            # 如果需要处理客户端发来的命令，可以在这里添加逻辑
+            # 例如: await manager.send_personal_message({"msg": "Command received"}, websocket)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# Placeholder for AI Model Integration
-@app.post("/api/v1/ai_review")
-async def ai_review_endpoint(payload: dict):
-    """
-    This endpoint is designed to receive data from the storage module.
-    It simulates the integration point for your trained ML model.
-    """
-    message_content = payload.get("message_content", "")
-    
-    # --- SIMULATE YOUR ML MODEL HERE ---
-    # For example: prediction = my_ml_model.predict(message_content)
-    # For demo, we'll hardcode a result.
-    is_content_violation = "violation" in message_content.lower() or "badword" in message_content.lower()
-    severity_score = 0.9 if is_content_violation else 0.1
+# --- API Endpoints ---
+@app.get("/")
+async def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "clients": clients,
+        "server_public_keys": server_public_keys
+    })
 
-    return {
-        "ai_prediction": "VIOLATION_FOUND" if is_content_violation else "CONTENT_OK",
-        "severity_score": severity_score,
-        "review_timestamp": asyncio.get_event_loop().time()
-    }
+@app.post("/api/v1/report")
+async def submit_report(report_data: dict):
+    # 使用 .get(key, "") 为缺失的键提供一个空字符串作为默认值
+    reporter_id = report_data.get("reporter_id") or ""
+    reported_message = report_data.get("reported_message") or ""
+    context = report_data.get("context") or ""
+
+    if not all([reporter_id, reported_message, context]):
+        return {"error": "Missing required fields"}
+
+    # 此时，reporter_id, reported_message, context 的类型都是 str
+    receiver_shared_key = alice.shared_key_with_receiver # 假设消息是发给Alice的
+
+    result = await report_manager.handle_full_report_flow(
+        reporter_id, reported_message, context, server_public_keys, receiver_shared_key
+    )
+    return result
+
+@app.get("/api/v1/reports")
+async def get_reports():
+    reports = report_manager.get_all_reports()
+    return {"reports": reports}
+
+# --- Run the Server ---
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)

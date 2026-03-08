@@ -1,9 +1,9 @@
-from typing import Dict, Any # 1. 确保导入了 Any
+from typing import Dict, Any
 import logging
-from ..core.onion_franking import OnionFrankingClient # 假设这个类在别处定义，需要在此导入
-from ..core.onion_franking import OnionFrankingModerator
+from ..core.onion_franking import OnionFrankingClient, OnionFrankingModerator
 from ..utils.crypto_utils import decrypt_message
 from ..models.moderator import ModeratorEntity
+from ..core.ws_manager import manager # 导入 WebSocket 管理器
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +12,7 @@ class VerificationModule:
         self.moderator = OnionFrankingModerator()
         self.moderator_entity = ModeratorEntity()
 
-    # 2. 将返回类型注释中的 'any' 改为 'Any'
-    def verify_report(self, report_data: dict, receiver_shared_key_hex: str) -> Dict[str, Any]:
+    async def verify_report(self, report_data: dict, receiver_shared_key_hex: str) -> Dict[str, Any]:
         try:
             c1_hex = report_data["c1_encrypted_msg"]
             c2_hex = report_data["c2_commitment"]
@@ -31,26 +30,24 @@ class VerificationModule:
             ciphertext = bytes.fromhex(c1_parsed["ciphertext"])
             nonce = bytes.fromhex(c1_parsed["nonce"])
 
-            # --- FIX: Add a check for receiver_shared_key_hex ---
             if not receiver_shared_key_hex:
                 raise ValueError("Receiver's shared key is missing or invalid.")
             
             shared_key = bytes.fromhex(receiver_shared_key_hex)
-            # --- END FIX ---
 
             decrypted_payload_str = decrypt_message(shared_key, ciphertext, nonce)
             decrypted_payload = eval(decrypted_payload_str) # Same, eval for demo only!
             message = decrypted_payload["message"]
 
             # 2. Recompute k_f from seed s
-            KF_LEN = 32
-            k_f = rs[:KF_LEN]
+            # --- 修正：KF_LEN 应与 OnionFrankingClient 中定义的一致 ---
+            # 从 OnionFrankingClient 的 send_online 方法中可以看到 KF_LEN = 32
+            KF_LEN = 32 
+            k_f = rs[:KF_LEN] # rs 的前 KF_LEN 个字节就是 k_f
+            # --- END FIX ---
 
             # 3. Verify the commitment c2
-            # 注意：这里需要一个真实的 OnionFrankingClient 实例
-            # 为了演示，我们创建一个空的，但在实际应用中，moderator 可能需要自己的共享密钥
-            # 这里的模拟实例可能无法执行 com_open，需要根据实际 core 实现调整
-            # of_client = OnionFrankingClient(moderator_id, moderator_shared_key, server_pks)
+            # 创建一个临时的 Client 实例来调用其 com_open 方法
             of_client = OnionFrankingClient("", b"", [])
             is_commitment_valid = of_client.com_open(c2, message.encode('utf-8'), k_f)
 
@@ -71,12 +68,29 @@ class VerificationModule:
                 "sender_identity": "Anonymized (Verification Successful)" # The core point: sender ID is not revealed
             }
             logger.info(f"Report verified successfully. Message: '{message}'")
+
+            # --- 新增：发送验证结果到 WebSocket 客户端 ---
+            await manager.broadcast({
+                "type": "verification_result",
+                "payload": verification_result
+            })
+            # --- END NEW CODE ---
+
             return verification_result
 
         except ValueError as ve:
-            # Catch our custom error and other ValueError from fromhex/decrypt
             logger.error(f"Verification failed due to invalid data: {ve}")
-            return {"is_valid": False, "error": str(ve)}
+            error_result = {"is_valid": False, "error": str(ve)}
+            await manager.broadcast({
+                "type": "verification_result",
+                "payload": error_result
+            })
+            return error_result
         except Exception as e:
             logger.error(f"Verification failed: {e}")
-            return {"is_valid": False, "error": str(e)}
+            error_result = {"is_valid": False, "error": str(e)}
+            await manager.broadcast({
+                "type": "verification_result",
+                "payload": error_result
+            })
+            return error_result

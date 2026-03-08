@@ -1,7 +1,14 @@
 import json
+import hashlib
 from typing import List, Tuple
 from ..utils.crypto_utils import generate_random_key, encrypt_message, decrypt_message, compute_hmac, verify_hmac, hash_data
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
 
+# Constants for the scheme
+SIGMA_C_LENGTH = 32  # Length for sigma_c in bytes
+SIGMA_LENGTH = 32    # Length for sigma in bytes
+COMMITMENT_LENGTH = 64 # Length for commitment in bytes
 
 class OnionFrankingClient:
     def __init__(self, client_id: str, shared_key_with_receiver: bytes, server_public_keys: List[bytes]):
@@ -65,3 +72,34 @@ class OnionFrankingModerator:
         valid_f = OnionFrankingClient("", b"", []).com_open(c2, message.encode('utf-8'), k_f)
         valid_r = verify_hmac(self.k_m, c2 + ctx.encode('utf-8'), sigma)
         return valid_f and valid_r
+
+# --- 新增：服务器密钥生成函数 ---
+def generate_server_keys(num_servers: int = 3) -> Tuple[List[bytes], List[bytes]]:
+    """
+    Generates public keys for servers in the onion franking system.
+    This function creates elliptic curve key pairs for each server.
+    """
+    public_keys = []
+    private_keys = []
+    for i in range(num_servers):
+        # Generate a private key for the server
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        # Derive the public key from the private key
+        public_key = private_key.public_key()
+        
+        # Serialize keys to bytes for easy handling
+        public_pem = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        private_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        
+        public_keys.append(public_pem)
+        private_keys.append(private_pem)
+        
+    return public_keys, private_keys
+# --- END NEW CODE ---

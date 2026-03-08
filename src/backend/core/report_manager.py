@@ -19,8 +19,8 @@ class ReportManager:
             # 1. Submit
             report_data = self.submission_module.submit_report(reporter_id, reported_message, context, server_public_keys)
 
-            # 2. Verify
-            verification_result = self.verification_module.verify_report(report_data, receiver_shared_key)
+            # 2. Verify (现在是异步的，会推送结果)
+            verification_result = await self.verification_module.verify_report(report_data, receiver_shared_key)
 
             # 3. Store
             stored_report = await self.storage_module.store_report(report_data, verification_result)
